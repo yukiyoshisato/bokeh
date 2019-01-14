@@ -1,12 +1,16 @@
 from os.path import dirname, join
 
+import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 
-from bokeh.layouts import row, widgetbox, column
+from bokeh.layouts import row, widgetbox, column, gridplot
 from bokeh.models import ColumnDataSource, HoverTool
-from bokeh.models.widgets import Button, DataTable, TableColumn, PreText, Panel, Tabs, Select, TextInput
+from bokeh.models.widgets import Button, DataTable, TableColumn, PreText, Panel, Tabs, Select, TextInput, Slider, CheckboxGroup
 from bokeh.plotting import figure
 from bokeh.io import curdoc
+
 
 # Load Data
 
@@ -28,6 +32,12 @@ title_table_titanic = PreText(text="Data")
 data_table_titanic = DataTable(source=source_titanic, columns=columns_titanic, width=1000)
 title_table_titanic_stats = PreText(text="Statistics")
 data_table_titanic_stats = DataTable(source=source_titanic_stats, columns=columns_titanic, width=1000)
+
+
+def read_csv():
+    global df_titanic
+    df_titanic = pd.read_csv("data/titanic/train.csv")
+    update_titanic()
 
 
 def update_titanic():
@@ -64,7 +74,7 @@ def fill_missing_value():
     update_titanic()
 
 
-button_read_csv.on_click(update_titanic)
+button_read_csv.on_click(read_csv)
 button_fill_missing_value.on_click(fill_missing_value)
 
 input_load_data = column(button_read_csv, column(button_fill_missing_value, column_fill_missing_value, input_fill_missing_value))
@@ -99,7 +109,7 @@ if not out.empty:
         outx.append(keys[0])
         outy.append(out.loc[keys[0]].loc[keys[1]])
 
-boxplot_age_survived = figure(background_fill_color="#efefef", x_range=(-2.5, 3.5), plot_width=400, plot_height=600, title="boxplot")
+boxplot_age_survived = figure(background_fill_color="#efefef", x_range=(-2.5, 3.5), plot_height=600, title="boxplot")
 # if no outliers, shrink lengths of stems to be no longer than the minimums or maximums
 qmin = groups.quantile(q=0.00)
 qmax = groups.quantile(q=1.00)
@@ -124,18 +134,36 @@ if not out.empty:
 
 boxplot_age_survived.xgrid.grid_line_color = None
 boxplot_age_survived.ygrid.grid_line_color = "white"
-boxplot_age_survived.grid.grid_line_width = 2
+boxplot_age_survived.grid.grid_line_width = 1
+boxplot_age_survived.xaxis.axis_label = "Survived"
+boxplot_age_survived.yaxis.axis_label = "Age"
 
 # scatter plot
 
-scatter_x = Select(title="x", value="", options=list(df_titanic.columns))
-scatter_y = Select(title="y", value="", options=list(df_titanic.columns))
+scatter_x = Select(title="x", value="Age", options=list(df_titanic.columns))
+scatter_y = Select(title="y", value="Fare", options=list(df_titanic.columns))
 scatter_button = Button(label="Refresh", button_type="success")
 
-source_scatter_0_male = ColumnDataSource(data=dict(x=[], y=[]))
-source_scatter_0_female = ColumnDataSource(data=dict(x=[], y=[]))
-source_scatter_1_male = ColumnDataSource(data=dict(x=[], y=[]))
-source_scatter_1_female = ColumnDataSource(data=dict(x=[], y=[]))
+blank_data_scatter = dict(
+    x=[],
+    y=[],
+    PassengerId=[],
+    Survived=[],
+    Pclass=[],
+    Name=[],
+    Sex=[],
+    Age=[],
+    SibSp=[],
+    Parch=[],
+    Ticket=[],
+    Fare=[],
+    Cabin=[],
+    Embarked=[],
+)
+source_scatter_0_male = ColumnDataSource(data=dict(blank_data_scatter))
+source_scatter_0_female = ColumnDataSource(data=dict(blank_data_scatter))
+source_scatter_1_male = ColumnDataSource(data=dict(blank_data_scatter))
+source_scatter_1_female = ColumnDataSource(data=dict(blank_data_scatter))
 
 
 def update_scatter():
@@ -218,7 +246,7 @@ def update_scatter():
     source_scatter_1_female.data = data_1_female
 
 
-scatter_plot = figure(title="Scatter Plot", plot_width=600, plot_height=600)
+scatter_plot = figure(title="Scatter Plot", plot_width=1000, plot_height=600)
 scatter_plot.x(x="x", y="y", source=source_scatter_0_male, color="blue", size=10, alpha=0.5, legend="Not Survived (Male)")
 scatter_plot.x(x="x", y="y", source=source_scatter_0_female, color="red", size=10, alpha=0.5, legend="Not Survived (Female)")
 scatter_plot.circle(x="x", y="y", source=source_scatter_1_male, color="blue", size=10, alpha=0.5, legend="Survived (Male)")
@@ -242,27 +270,93 @@ scatter_plot.add_tools(HoverTool(
     ]
 ))
 scatter_plot.legend.click_policy = "hide"
-
 scatter_button.on_click(update_scatter)
-
 input_scatter = widgetbox(scatter_x, scatter_y, scatter_button, height=600)
 
-data_visualization = row(input_scatter, scatter_plot, boxplot_age_survived)
+# histogram
+hist_x = Select(title="x", value="Age", options=list(df_titanic.columns))
+hist_button = Button(label="Refresh", button_type="success")
+source_hist = ColumnDataSource(data=dict(top=[], bottom=[], left=[], right=[],))
+
+
+def update_histogram():
+    measured = df_titanic[hist_x.value]
+    hist, edges = np.histogram(measured, density=True, bins=50)
+    source_hist.data = dict(
+        top=hist,
+        bottom=[0]*len(hist),
+        left=edges[:-1],
+        right=edges[1:],
+    )
+
+
+hist_plot = figure(title="Histogram", plot_width=1000, plot_height=300)
+hist_plot.quad(top="top", bottom="bottom", left="left", right="right", source=source_hist, fill_color="navy", line_color="white", alpha=0.5)
+hist_plot.legend.background_fill_color = "#fefefe"
+hist_plot.grid.grid_line_color = "white"
+hist_button.on_click(update_histogram)
+
+data_visualization = gridplot([
+    [input_scatter, scatter_plot],
+    [widgetbox(hist_x, hist_button), hist_plot],
+    [None, boxplot_age_survived]
+])
+
 tab_data_visualization = Panel(child=data_visualization, title="Data Visualization")
 
+# train
+
+x_titanic_title = PreText(text="X")
+x_titanic = CheckboxGroup(labels=list(df_titanic.columns), active=[i for i in range(2, 12)])
+y_titanic_title = PreText(text="y")
+y_titanic = CheckboxGroup(labels=list(df_titanic.columns), active=[1])
+train_test_slider = Slider(start=0.05, end=0.95, value=0.25, step=0.05, title="Test Size")
+train_button = Button(label="Train", button_type="success")
+train_message = PreText(text="")
+input_x = column(x_titanic_title, x_titanic)
+input_y = column(y_titanic_title, y_titanic)
+input_others = column(train_test_slider, train_button, train_message)
+controls_train = row(input_x, input_y, input_others)
+
+source_importance = ColumnDataSource(dict(x=[], top=[],))
 
 
+def train():
+    if 1 < len(y_titanic.active):
+        train_message.text = "please select only one item for y."
+        return None
+    X = df_titanic[[x_titanic.labels[i] for i in x_titanic.active]]
+    #if X.isnull().all():
+    #    train_message.text = "please fill missing values or please don't select the item including missing values."
+    #    print(X.to_string())
+    #    return None
+    y = df_titanic[[y_titanic.labels[i] for i in y_titanic.active]]
+    print(y.to_string())
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=float(train_test_slider.value), random_state=42)
+    random_forest = RandomForestClassifier()
+    random_forest.fit(X_train, X_test)
+    train_message.text = "Training..."
+    importances = random_forest.feature_importances_
+    std = np.std([tree.feature_importances_ for tree in random_forest.estimators_], axis=0)
+    indices = np.argsort(importances)[::-1]
+    data_importance = dict(
+        x=range(X.shape[1]),
+        top=importances[indices],
+    )
+    train_message.text = "Completed."
 
 
+importance_plot = figure(title="Feature Importance", plot_width=1000, plot_height=600)
+importance_plot.vbar(x="x", top="top", bottom=0, width=5, source=source_importance)
 
+train_button.on_click(train)
 
-
-
+tab_train = Panel(child=column(controls_train, importance_plot), title="Train")
 
 
 # consolidate all tabs
 
-tabs = Tabs(tabs=[tab_load_titanic, tab_data_visualization])
+tabs = Tabs(tabs=[tab_load_titanic, tab_data_visualization, tab_train])
 
 curdoc().add_root(tabs)
 
