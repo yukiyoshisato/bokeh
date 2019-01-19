@@ -88,8 +88,15 @@ button_read_csv.on_click(read_csv)
 button_fill_missing_value.on_click(fill_missing_value)
 button_convert_categorical.on_click(convert_categorical_value)
 
-input_load_data = column(button_read_csv, column(button_fill_missing_value, column_fill_missing_value, input_fill_missing_value, button_convert_categorical))
-output_load_data = column(title_table_titanic, data_table_titanic, title_table_titanic_stats, data_table_titanic_stats)
+input_load_data = column(button_read_csv,
+                         button_convert_categorical,
+                         column_fill_missing_value,
+                         input_fill_missing_value,
+                         button_fill_missing_value)
+output_load_data = column(title_table_titanic,
+                          data_table_titanic,
+                          title_table_titanic_stats,
+                          data_table_titanic_stats)
 load_titanic = row(input_load_data, output_load_data)
 tab_load_titanic = Panel(child=load_titanic, title="Load Data")
 
@@ -287,12 +294,13 @@ input_scatter = widgetbox(scatter_x, scatter_y, scatter_button, height=600)
 # histogram
 hist_x = Select(title="x", value="Age", options=list(df_titanic.columns))
 hist_button = Button(label="Refresh", button_type="success")
+bins_slider = Slider(start=1, end=100, value=50, step=1, title="bins")
 source_hist = ColumnDataSource(data=dict(top=[], bottom=[], left=[], right=[],))
 
 
 def update_histogram():
     measured = df_titanic[hist_x.value]
-    hist, edges = np.histogram(measured, density=True, bins=50)
+    hist, edges = np.histogram(measured, density=False, bins=int(bins_slider.value))
     source_hist.data = dict(
         top=hist,
         bottom=[0]*len(hist),
@@ -305,11 +313,21 @@ hist_plot = figure(title="Histogram", plot_width=1000, plot_height=300)
 hist_plot.quad(top="top", bottom="bottom", left="left", right="right", source=source_hist, fill_color="navy", line_color="white", alpha=0.5)
 hist_plot.legend.background_fill_color = "#fefefe"
 hist_plot.grid.grid_line_color = "white"
+hist_plot.add_tools(HoverTool(
+    tooltips=[
+        ("top", "@top"),
+        ("bottom", "@bottom"),
+        ("left", "@left"),
+        ("right", "@right"),
+    ],
+    mode='vline'
+))
 hist_button.on_click(update_histogram)
+bins_slider.on_change("value", lambda attr, old, new: update_histogram())
 
 data_visualization = gridplot([
     [input_scatter, scatter_plot],
-    [widgetbox(hist_x, hist_button), hist_plot],
+    [widgetbox(hist_x, hist_button, bins_slider), hist_plot],
     [None, boxplot_age_survived]
 ])
 
@@ -417,6 +435,7 @@ metrics_plot.line(x="train_sizes", y="test_scores", source=source_test_scores, c
 metrics_plot.patch(x="x_train_std", y="y_train_std", source=source_train_std, color="blue", alpha=0.15, legend="train std")
 metrics_plot.patch(x="x_test_std", y="y_test_std", source=source_test_std, color="green", alpha=0.15, legend="test std")
 metrics_plot.legend.location = "bottom_right"
+metrics_plot.legend.orientation = "horizontal"
 metrics_plot.add_tools(HoverTool(
     tooltips=[
         ("train sizes", "@train_sizes"),
@@ -504,10 +523,8 @@ def inference():
     x_columns = [x_titanic.labels[i] for i in x_titanic.active]
     X_inference = pd.get_dummies(df_titanic_inference[x_columns])
     p = random_forest.predict(X_inference)
-    print(p)
     df_submit = pd.concat([pd.DataFrame(data=df_titanic_inference["PassengerId"].values, columns=["PassengerId"]),
                            pd.DataFrame(data=p, columns=["Survived"])], axis=1)
-    print(df_submit.to_string())
     data_inference = {}
     for column_inference in df_submit.columns:
         data_inference[column_inference] = df_submit.loc[:, column_inference]
@@ -521,7 +538,11 @@ button_inference.on_click(inference)
 button_download.callback = CustomJS(args=dict(source=source_inference),
                                     code=open(join(dirname(__file__), "download.js")).read())
 
-input_load_data_inference = column(button_read_csv_inference, column(button_fill_missing_value_inference, column_fill_missing_value_inference, input_fill_missing_value_inference, button_convert_categorical_inference))
+input_load_data_inference = column(button_read_csv_inference,
+                                   button_convert_categorical_inference,
+                                   column_fill_missing_value_inference,
+                                   input_fill_missing_value_inference,
+                                   button_fill_missing_value_inference)
 output_load_data_inference = column(title_table_titanic_inference, data_table_titanic_inference)
 load_titanic_inference = row(input_load_data_inference, output_load_data_inference)
 show_inference = row(column(button_inference, button_download), data_table_inference)
