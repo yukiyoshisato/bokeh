@@ -2,8 +2,8 @@ import pandas as pd
 from math import pi
 from datetime import datetime, timedelta, timezone
 import visualization as v
-from bokeh.models import Slider, ColumnDataSource, Button, WidgetBox, RangeSlider
-from bokeh.layouts import layout, Row, Column
+from bokeh.models import ColumnDataSource, Button, WidgetBox
+from bokeh.layouts import Row, Column
 from bokeh.io import curdoc
 
 

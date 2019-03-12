@@ -1,7 +1,4 @@
-import ccxt
 import pandas as pd
-from order_book import OrderBook
-from bokeh.models import ColumnDataSource, NumeralTickFormatter
 from bokeh.plotting import figure
 
 
